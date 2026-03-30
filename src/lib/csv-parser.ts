@@ -5,24 +5,44 @@ export interface ParsedCSV {
   headers: string[];
   rows: Record<string, string>[];
   errors: string[];
+  rawText: string;
 }
 
 export function parseCSVFile(file: File): Promise<ParsedCSV> {
   return new Promise((resolve) => {
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete(results) {
-        const headers = results.meta.fields ?? [];
-        const rows = results.data as Record<string, string>[];
-        const errors = results.errors.map(e => `Row ${e.row}: ${e.message}`);
-        resolve({ headers, rows, errors });
-      },
-      error(err: Error) {
-        resolve({ headers: [], rows: [], errors: [err.message] });
-      },
-    });
+    const reader = new FileReader();
+    reader.onload = () => {
+      const rawText = reader.result as string;
+      Papa.parse(rawText, {
+        header: true,
+        skipEmptyLines: true,
+        complete(results) {
+          const headers = results.meta.fields ?? [];
+          const rows = results.data as Record<string, string>[];
+          const errors = results.errors.map(e => `Row ${e.row}: ${e.message}`);
+          resolve({ headers, rows, errors, rawText });
+        },
+        error(err: Error) {
+          resolve({ headers: [], rows: [], errors: [err.message], rawText });
+        },
+      });
+    };
+    reader.onerror = () => {
+      resolve({ headers: [], rows: [], errors: ['Failed to read file'], rawText: '' });
+    };
+    reader.readAsText(file);
   });
+}
+
+export function generateFileHash(content: string): string {
+  let hash = 0;
+  const str = content.trim();
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash |= 0;
+  }
+  return Math.abs(hash).toString(36);
 }
 
 export function normalizeAmount(value: string): number | null {

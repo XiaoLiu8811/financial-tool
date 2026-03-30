@@ -8,6 +8,9 @@ export interface Transaction {
   notes?: string;
   importBatchId: string;
   rawCSVRow?: Record<string, string>;
+  linkedTransactionId?: string;
+  isLinkedTransfer?: boolean;
+  transactionHash?: string;
 }
 
 export interface ImportBatch {
@@ -16,6 +19,7 @@ export interface ImportBatch {
   importedAt: string;
   transactionCount: number;
   columnMapping: ColumnMapping;
+  fileHash?: string;
 }
 
 export interface ColumnMapping {

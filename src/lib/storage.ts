@@ -15,4 +15,11 @@ db.version(1).stores({
   categoryRules: 'id, categoryId, priority',
 });
 
+db.version(2).stores({
+  transactions: 'id, date, categoryId, importBatchId, amount, linkedTransactionId, transactionHash',
+  importBatches: 'id, importedAt, fileHash',
+  categories: 'id, name, isDefault',
+  categoryRules: 'id, categoryId, priority',
+});
+
 export { db };

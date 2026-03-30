@@ -105,69 +105,70 @@ export function CategoryManager() {
     return rules.filter(r => r.categoryId === categoryId).length;
   }
 
-  function CategoryForm({ isEdit }: { isEdit: boolean }) {
-    return (
-      <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-        <div className="flex-1 min-w-0">
-          <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
-          <input
-            type="text"
-            value={formName}
-            onChange={e => setFormName(e.target.value)}
-            placeholder="Category name"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Color</label>
-          <input
-            type="color"
-            value={formColor}
-            onChange={e => setFormColor(e.target.value)}
-            className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
-          <select
-            value={formType}
-            onChange={e => setFormType(e.target.value as Category['type'])}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          >
-            <option value="expense">Expense</option>
-            <option value="income">Income</option>
-            <option value="both">Both</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-500 mb-1">Icon (optional)</label>
-          <input
-            type="text"
-            value={formIcon}
-            onChange={e => setFormIcon(e.target.value)}
-            placeholder="e.g. cart"
-            className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={isEdit ? handleUpdate : handleAdd}
-            className="inline-flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Check size={14} />
-            {isEdit ? 'Update' : 'Add'}
-          </button>
-          <button
-            onClick={() => { isEdit ? cancelEdit() : setShowAdd(false); resetForm(); }}
-            className="inline-flex items-center gap-1 px-3 py-2 text-gray-600 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <X size={14} />
-            Cancel
-          </button>
-        </div>
+  const isEdit = editingId !== null;
+
+  const categoryForm = (
+    <div className="flex flex-col sm:flex-row items-start sm:items-end gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="flex-1 min-w-0">
+        <label className="block text-xs font-medium text-gray-500 mb-1">Name</label>
+        <input
+          type="text"
+          value={formName}
+          onChange={e => setFormName(e.target.value)}
+          placeholder="Category name"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          autoFocus
+        />
       </div>
-    );
-  }
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Color</label>
+        <input
+          type="color"
+          value={formColor}
+          onChange={e => setFormColor(e.target.value)}
+          className="w-10 h-10 rounded-lg border border-gray-300 cursor-pointer"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Type</label>
+        <select
+          value={formType}
+          onChange={e => setFormType(e.target.value as Category['type'])}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        >
+          <option value="expense">Expense</option>
+          <option value="income">Income</option>
+          <option value="both">Both</option>
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-500 mb-1">Icon (optional)</label>
+        <input
+          type="text"
+          value={formIcon}
+          onChange={e => setFormIcon(e.target.value)}
+          placeholder="e.g. cart"
+          className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={isEdit ? handleUpdate : handleAdd}
+          className="inline-flex items-center gap-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Check size={14} />
+          {isEdit ? 'Update' : 'Add'}
+        </button>
+        <button
+          onClick={() => { isEdit ? cancelEdit() : setShowAdd(false); resetForm(); }}
+          className="inline-flex items-center gap-1 px-3 py-2 text-gray-600 text-sm border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <X size={14} />
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -194,7 +195,7 @@ export function CategoryManager() {
       </div>
 
       {/* Add Form */}
-      {showAdd && <CategoryForm isEdit={false} />}
+      {showAdd && categoryForm}
 
       {/* Category List */}
       <div className="bg-white border border-gray-200 rounded-xl divide-y divide-gray-100">
@@ -205,7 +206,7 @@ export function CategoryManager() {
             <div key={cat.id}>
               {editingId === cat.id ? (
                 <div className="p-3">
-                  <CategoryForm isEdit />
+                  {categoryForm}
                 </div>
               ) : (
                 <div className="flex items-center gap-3 px-4 py-3 group">

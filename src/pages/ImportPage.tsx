@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import CSVDropZone from '../components/import/CSVDropZone';
 import ImportPreview from '../components/import/ImportPreview';
-import { parseCSVFile, autoDetectMapping, mapCSVToTransactions } from '../lib/csv-parser';
-import type { ColumnMapping } from '../types/transaction';
+import { parseCSVFile, autoDetectMapping, mapCSVToTransactions, generateFileHash, generateTransactionHash } from '../lib/csv-parser';
+import { useTransactionStore } from '../store/useTransactionStore';
+import type { ColumnMapping, ImportBatch } from '../types/transaction';
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -10,12 +11,31 @@ export function ImportPage() {
   const [rows, setRows] = useState<Record<string, string>[]>([]);
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [splitMode, setSplitMode] = useState(false);
+  const [fileHash, setFileHash] = useState('');
+  const [fileAlreadyImported, setFileAlreadyImported] = useState(false);
+  const [existingBatchInfo, setExistingBatchInfo] = useState<ImportBatch | null>(null);
+  const [dismissedFileWarning, setDismissedFileWarning] = useState(false);
+
+  const importBatches = useTransactionStore(s => s.importBatches);
+  const transactions = useTransactionStore(s => s.transactions);
 
   const handleFileSelected = async (f: File) => {
     setFile(f);
+    setDismissedFileWarning(false);
     const result = await parseCSVFile(f);
     setHeaders(result.headers);
     setRows(result.rows);
+    // Compute file hash and check for duplicate file import
+    const hash = generateFileHash(result.rawText);
+    setFileHash(hash);
+    const matchingBatch = importBatches.find(b => b.fileHash === hash);
+    if (matchingBatch) {
+      setFileAlreadyImported(true);
+      setExistingBatchInfo(matchingBatch);
+    } else {
+      setFileAlreadyImported(false);
+      setExistingBatchInfo(null);
+    }
 
     // Auto-detect columns immediately
     const detected = autoDetectMapping(result.headers);
@@ -34,7 +54,31 @@ export function ImportPage() {
     setRows([]);
     setMapping(null);
     setSplitMode(false);
+    setFileHash('');
+    setFileAlreadyImported(false);
+    setExistingBatchInfo(null);
+    setDismissedFileWarning(false);
   };
+
+  // Compute row-level duplicate hashes when mapping changes
+  const duplicateHashes = useMemo(() => {
+    if (!mapping || rows.length === 0) return new Set<string>();
+
+    const existingHashes = new Set(
+      transactions.filter(t => t.transactionHash).map(t => t.transactionHash!)
+    );
+
+    const mapped = mapCSVToTransactions(rows, mapping);
+    const dupes = new Set<string>();
+    for (const row of mapped) {
+      if (row.error) continue;
+      const hash = generateTransactionHash(row.date, row.description, row.amount);
+      if (existingHashes.has(hash)) {
+        dupes.add(hash);
+      }
+    }
+    return dupes;
+  }, [rows, mapping, transactions]);
 
   // Preview of mapped data to show alongside column config
   const previewData = useMemo(() => {
@@ -59,6 +103,31 @@ export function ImportPage() {
             Choose a different file
           </button>
         </div>
+
+        {/* Duplicate file warning banner */}
+        {fileAlreadyImported && !dismissedFileWarning && existingBatchInfo && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-amber-800">Duplicate file detected</p>
+              <p className="text-sm text-amber-700 mt-1">
+                This file was already imported on{' '}
+                <span className="font-medium">{new Date(existingBatchInfo.importedAt).toLocaleDateString()}</span>{' '}
+                as <span className="font-medium">{existingBatchInfo.fileName}</span>.
+              </p>
+              <button
+                onClick={() => setDismissedFileWarning(true)}
+                className="mt-2 text-sm font-medium text-amber-800 underline hover:text-amber-900"
+              >
+                Import anyway
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* File info */}
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -171,13 +240,15 @@ export function ImportPage() {
         </div>
 
         {/* Full preview + import */}
-        {isValid && (
+        {isValid && (!fileAlreadyImported || dismissedFileWarning) && (
           <ImportPreview
             rows={rows}
             mapping={mapping}
             fileName={file.name}
             onConfirm={handleReset}
             onCancel={handleReset}
+            duplicateHashes={duplicateHashes}
+            fileHash={fileHash}
           />
         )}
       </div>

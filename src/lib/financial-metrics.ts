@@ -2,10 +2,14 @@ import { format, parseISO } from 'date-fns';
 import type { Transaction, Category } from '../types/transaction';
 import type { FinancialMetrics, MonthlyAggregate } from '../types/financial';
 
+function excludeLinkedTransfers(transactions: Transaction[]): Transaction[] {
+  return transactions.filter(t => !t.isLinkedTransfer);
+}
+
 export function computeMonthlyAggregates(transactions: Transaction[]): MonthlyAggregate[] {
   const byMonth = new Map<string, MonthlyAggregate>();
 
-  for (const t of transactions) {
+  for (const t of excludeLinkedTransfers(transactions)) {
     const month = format(parseISO(t.date), 'yyyy-MM');
     let agg = byMonth.get(month);
     if (!agg) {
@@ -31,8 +35,9 @@ export function computeFinancialMetrics(
   transactions: Transaction[],
   categories: Category[],
 ): FinancialMetrics {
-  const totalIncome = transactions.filter(t => t.amount >= 0).reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const active = excludeLinkedTransfers(transactions);
+  const totalIncome = active.filter(t => t.amount >= 0).reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = active.filter(t => t.amount < 0).reduce((sum, t) => sum + Math.abs(t.amount), 0);
   const netSavings = totalIncome - totalExpenses;
   const savingsRate = totalIncome > 0 ? (netSavings / totalIncome) * 100 : 0;
 
@@ -43,7 +48,7 @@ export function computeFinancialMetrics(
 
   // Top expense category
   const expenseByCategory = new Map<string, number>();
-  for (const t of transactions.filter(tx => tx.amount < 0)) {
+  for (const t of active.filter(tx => tx.amount < 0)) {
     const catId = t.categoryId ?? 'cat-uncategorized';
     expenseByCategory.set(catId, (expenseByCategory.get(catId) ?? 0) + Math.abs(t.amount));
   }
