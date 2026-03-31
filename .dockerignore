@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-ssr
+.git
+.claude
+.gitignore
+.vscode
+.idea
+*.md
+*.log
