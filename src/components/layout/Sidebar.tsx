@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, ArrowUpDown, Upload, Tags, Menu } from 'lucide-react';
+import { LayoutDashboard, ArrowUpDown, Upload, Tags, Users, Menu } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 
 const navItems = [
@@ -7,6 +7,7 @@ const navItems = [
   { to: '/transactions', icon: ArrowUpDown, label: 'Transactions' },
   { to: '/import', icon: Upload, label: 'Import CSV' },
   { to: '/categories', icon: Tags, label: 'Categories' },
+  { to: '/household', icon: Users, label: 'Household' },
 ];
 
 export function Sidebar() {

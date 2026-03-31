@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowUpDown, Upload, ChevronDown, ChevronUp, Eye, Trash2, X } from 'lucide-react';
 import { useFilteredTransactions } from '../hooks/useFilteredTransactions';
 import { useTransactionStore } from '../store/useTransactionStore';
+import { useHouseholdStore } from '../store/useHouseholdStore';
+import { useUIStore } from '../store/useUIStore';
 import { TransactionTable } from '../components/transactions/TransactionTable';
 import { EmptyState } from '../components/ui/EmptyState';
 
@@ -10,6 +12,8 @@ export function TransactionsPage() {
   const allTransactions = useFilteredTransactions();
   const importBatches = useTransactionStore(s => s.importBatches);
   const deleteImportBatch = useTransactionStore(s => s.deleteImportBatch);
+  const { accounts, members } = useHouseholdStore();
+  const { accountFilter, personFilter, setAccountFilter, setPersonFilter } = useUIStore();
   const navigate = useNavigate();
 
   const [showBatches, setShowBatches] = useState(false);
@@ -142,6 +146,36 @@ export function TransactionsPage() {
             <X size={14} />
             Clear filter
           </button>
+        </div>
+      )}
+
+      {/* Account & Person Filters */}
+      {(accounts.length > 0 || members.length > 0) && (
+        <div className="flex gap-3 mb-4">
+          {accounts.length > 0 && (
+            <select
+              value={accountFilter ?? ''}
+              onChange={e => setAccountFilter(e.target.value || null)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All Accounts</option>
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+          {members.length > 0 && (
+            <select
+              value={personFilter ?? ''}
+              onChange={e => setPersonFilter(e.target.value || null)}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">All People</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 

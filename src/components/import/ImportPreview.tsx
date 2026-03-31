@@ -14,6 +14,9 @@ interface ImportPreviewProps {
   onCancel: () => void;
   duplicateHashes?: Set<string>;
   fileHash?: string;
+  accountId?: string;
+  personId?: string;
+  incomeTypeId?: string;
 }
 
 type ImportState = 'preview' | 'importing' | 'success' | 'error';
@@ -26,6 +29,9 @@ export default function ImportPreview({
   onCancel,
   duplicateHashes,
   fileHash,
+  accountId,
+  personId,
+  incomeTypeId,
 }: ImportPreviewProps) {
   const [importState, setImportState] = useState<ImportState>('preview');
   const [errorMessage, setErrorMessage] = useState('');
@@ -83,6 +89,9 @@ export default function ImportPreview({
             importBatchId: batchId,
             rawCSVRow: r.rawCSVRow,
             transactionHash: txHash,
+            accountId,
+            personId,
+            ...(incomeTypeId && r.amount >= 0 ? { incomeTypeId } : {}),
           };
         });
 
@@ -93,6 +102,8 @@ export default function ImportPreview({
         transactionCount: transactions.length,
         columnMapping: mapping,
         fileHash,
+        accountId,
+        personId,
       };
 
       await addTransactions(transactions, batch);

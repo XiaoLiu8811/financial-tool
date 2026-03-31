@@ -1,9 +1,14 @@
 import { useState, useMemo } from 'react';
+import { Building2, UserPlus, Plus } from 'lucide-react';
 import CSVDropZone from '../components/import/CSVDropZone';
 import ImportPreview from '../components/import/ImportPreview';
 import { parseCSVFile, autoDetectMapping, mapCSVToTransactions, generateFileHash, generateTransactionHash } from '../lib/csv-parser';
+import { detectBank, type BankDetectionResult } from '../lib/bank-detector';
 import { useTransactionStore } from '../store/useTransactionStore';
-import type { ColumnMapping, ImportBatch } from '../types/transaction';
+import { useHouseholdStore } from '../store/useHouseholdStore';
+import type { ColumnMapping, ImportBatch, Account } from '../types/transaction';
+
+const MEMBER_COLORS = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
 
 export function ImportPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -16,8 +21,21 @@ export function ImportPage() {
   const [existingBatchInfo, setExistingBatchInfo] = useState<ImportBatch | null>(null);
   const [dismissedFileWarning, setDismissedFileWarning] = useState(false);
 
+  // Account & person state
+  const [detectedBank, setDetectedBank] = useState<BankDetectionResult | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  const [selectedIncomeTypeId, setSelectedIncomeTypeId] = useState<string | null>(null);
+  const [showNewAccount, setShowNewAccount] = useState(false);
+  const [newAccountName, setNewAccountName] = useState('');
+  const [newAccountInstitution, setNewAccountInstitution] = useState('');
+  const [newAccountType, setNewAccountType] = useState<Account['type']>('checking');
+  const [showNewMember, setShowNewMember] = useState(false);
+  const [newMemberName, setNewMemberName] = useState('');
+
   const importBatches = useTransactionStore(s => s.importBatches);
   const transactions = useTransactionStore(s => s.transactions);
+  const { accounts, members, incomeTypes, addAccount, addMember } = useHouseholdStore();
 
   const handleFileSelected = async (f: File) => {
     setFile(f);
@@ -46,6 +64,30 @@ export function ImportPage() {
       amount: detected.amount,
       ...(detected.mode === 'split' ? { income: detected.income, expense: detected.expense } : {}),
     });
+
+    // Detect bank from headers
+    const bankResult = detectBank(result.headers);
+    setDetectedBank(bankResult);
+    if (bankResult) {
+      // Try to find an existing account matching the detected bank
+      const existing = accounts.find(
+        a => a.institution.toLowerCase() === bankResult.institution.toLowerCase()
+          && a.type === bankResult.accountType
+      );
+      if (existing) {
+        setSelectedAccountId(existing.id);
+        setShowNewAccount(false);
+      } else {
+        setSelectedAccountId(null);
+        setShowNewAccount(true);
+        setNewAccountName(bankResult.suggestedName);
+        setNewAccountInstitution(bankResult.institution);
+        setNewAccountType(bankResult.accountType);
+      }
+    } else {
+      setSelectedAccountId(null);
+      setShowNewAccount(false);
+    }
   };
 
   const handleReset = () => {
@@ -58,6 +100,47 @@ export function ImportPage() {
     setFileAlreadyImported(false);
     setExistingBatchInfo(null);
     setDismissedFileWarning(false);
+    setDetectedBank(null);
+    setSelectedAccountId(null);
+    setSelectedPersonId(null);
+    setSelectedIncomeTypeId(null);
+    setShowNewAccount(false);
+    setNewAccountName('');
+    setNewAccountInstitution('');
+    setNewAccountType('checking');
+    setShowNewMember(false);
+    setNewMemberName('');
+  };
+
+  const handleCreateAccount = async () => {
+    if (!newAccountName.trim()) return;
+    const account: Account = {
+      id: crypto.randomUUID(),
+      name: newAccountName.trim(),
+      institution: newAccountInstitution.trim() || newAccountName.trim(),
+      type: newAccountType,
+      lastUsed: new Date().toISOString(),
+    };
+    await addAccount(account);
+    setSelectedAccountId(account.id);
+    setShowNewAccount(false);
+    setNewAccountName('');
+    setNewAccountInstitution('');
+  };
+
+  const handleCreateMember = async () => {
+    if (!newMemberName.trim()) return;
+    const color = MEMBER_COLORS[members.length % MEMBER_COLORS.length];
+    const member = {
+      id: crypto.randomUUID(),
+      name: newMemberName.trim(),
+      color,
+      createdAt: new Date().toISOString(),
+    };
+    await addMember(member);
+    setSelectedPersonId(member.id);
+    setShowNewMember(false);
+    setNewMemberName('');
   };
 
   // Compute row-level duplicate hashes when mapping changes
@@ -239,8 +322,205 @@ export function ImportPage() {
           )}
         </div>
 
+        {/* Account & Person selection */}
+        {isValid && (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-5">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">Account & Person</h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Assign this import to an account and household member.
+              </p>
+            </div>
+
+            {/* Account selection */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Account</label>
+              {detectedBank && !showNewAccount && !selectedAccountId && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-700">
+                  <Building2 size={16} />
+                  <span>Detected: <strong>{detectedBank.suggestedName}</strong></span>
+                  {detectedBank.confidence === 'low' && (
+                    <span className="text-xs text-blue-500">(low confidence)</span>
+                  )}
+                </div>
+              )}
+              {!showNewAccount ? (
+                <div className="flex gap-2">
+                  <select
+                    className={selectClasses + ' flex-1'}
+                    value={selectedAccountId ?? ''}
+                    onChange={e => setSelectedAccountId(e.target.value || null)}
+                  >
+                    <option value="">-- Select account --</option>
+                    {accounts.map(a => (
+                      <option key={a.id} value={a.id}>{a.name} ({a.institution})</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => {
+                      setShowNewAccount(true);
+                      if (detectedBank) {
+                        setNewAccountName(detectedBank.suggestedName);
+                        setNewAccountInstitution(detectedBank.institution);
+                        setNewAccountType(detectedBank.accountType);
+                      }
+                    }}
+                    className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <Plus size={14} />
+                    New
+                  </button>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-3 space-y-2">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-gray-500">Account Name</label>
+                      <input
+                        type="text"
+                        className={selectClasses}
+                        value={newAccountName}
+                        onChange={e => setNewAccountName(e.target.value)}
+                        placeholder="e.g. Chase Credit Card"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-gray-500">Institution</label>
+                      <input
+                        type="text"
+                        className={selectClasses}
+                        value={newAccountInstitution}
+                        onChange={e => setNewAccountInstitution(e.target.value)}
+                        placeholder="e.g. Chase"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-gray-500">Type</label>
+                      <select
+                        className={selectClasses}
+                        value={newAccountType}
+                        onChange={e => setNewAccountType(e.target.value as Account['type'])}
+                      >
+                        <option value="checking">Checking</option>
+                        <option value="savings">Savings</option>
+                        <option value="credit_card">Credit Card</option>
+                        <option value="other">Other</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreateAccount}
+                      disabled={!newAccountName.trim()}
+                      className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500"
+                    >
+                      Create Account
+                    </button>
+                    <button
+                      onClick={() => setShowNewAccount(false)}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Person selection */}
+            <div>
+              <label className="mb-1 block text-xs font-medium text-gray-600">Person</label>
+              {members.length === 0 && !showNewMember ? (
+                <div className="rounded-lg border border-dashed border-gray-300 p-3 text-center">
+                  <UserPlus className="mx-auto h-6 w-6 text-gray-400 mb-1" />
+                  <p className="text-xs text-gray-500 mb-2">No household members yet</p>
+                  <button
+                    onClick={() => setShowNewMember(true)}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                  >
+                    Add first member
+                  </button>
+                </div>
+              ) : !showNewMember ? (
+                <div className="flex gap-2">
+                  <select
+                    className={selectClasses + ' flex-1'}
+                    value={selectedPersonId ?? ''}
+                    onChange={e => setSelectedPersonId(e.target.value || null)}
+                  >
+                    <option value="">-- Select person --</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowNewMember(true)}
+                    className="flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    <Plus size={14} />
+                    New
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className={selectClasses + ' flex-1'}
+                    value={newMemberName}
+                    onChange={e => setNewMemberName(e.target.value)}
+                    placeholder="Name"
+                    onKeyDown={e => e.key === 'Enter' && handleCreateMember()}
+                  />
+                  <button
+                    onClick={handleCreateMember}
+                    disabled={!newMemberName.trim()}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:text-gray-500"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => setShowNewMember(false)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Income type selection - only if there are income rows */}
+            {mapping && rows.length > 0 && previewData.some(r => !r.error && r.amount >= 0) && (
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-600">Default Income Type</label>
+                <p className="text-xs text-gray-400 mb-1">Applied to income transactions in this import</p>
+                <select
+                  className={selectClasses}
+                  value={selectedIncomeTypeId ?? ''}
+                  onChange={e => setSelectedIncomeTypeId(e.target.value || null)}
+                >
+                  <option value="">-- None --</option>
+                  {incomeTypes.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Validation hint */}
+            {(!selectedAccountId || !selectedPersonId) && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                {!selectedAccountId && !selectedPersonId
+                  ? 'Please select or create an account and a person to continue.'
+                  : !selectedAccountId
+                    ? 'Please select or create an account to continue.'
+                    : 'Please select or create a person to continue.'}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Full preview + import */}
-        {isValid && (!fileAlreadyImported || dismissedFileWarning) && (
+        {isValid && (!fileAlreadyImported || dismissedFileWarning) && selectedAccountId && selectedPersonId && (
           <ImportPreview
             rows={rows}
             mapping={mapping}
@@ -249,6 +529,9 @@ export function ImportPage() {
             onCancel={handleReset}
             duplicateHashes={duplicateHashes}
             fileHash={fileHash}
+            accountId={selectedAccountId}
+            personId={selectedPersonId}
+            incomeTypeId={selectedIncomeTypeId ?? undefined}
           />
         )}
       </div>

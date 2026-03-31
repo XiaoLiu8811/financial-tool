@@ -11,6 +11,9 @@ export interface Transaction {
   linkedTransactionId?: string;
   isLinkedTransfer?: boolean;
   transactionHash?: string;
+  accountId?: string;
+  personId?: string;
+  incomeTypeId?: string;
 }
 
 export interface ImportBatch {
@@ -20,6 +23,29 @@ export interface ImportBatch {
   transactionCount: number;
   columnMapping: ColumnMapping;
   fileHash?: string;
+  accountId?: string;
+  personId?: string;
+}
+
+export interface Account {
+  id: string;
+  name: string;
+  institution: string;
+  type: 'credit_card' | 'checking' | 'savings' | 'other';
+  lastUsed?: string;
+}
+
+export interface HouseholdMember {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
+}
+
+export interface IncomeType {
+  id: string;
+  name: string;
+  isDefault: boolean;
 }
 
 export interface ColumnMapping {

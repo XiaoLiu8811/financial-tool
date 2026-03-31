@@ -3,6 +3,7 @@ import { Search, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Trash2, Tags
 import type { Transaction } from '../../types/transaction';
 import { useCategoryStore } from '../../store/useCategoryStore';
 import { useTransactionStore } from '../../store/useTransactionStore';
+import { useHouseholdStore } from '../../store/useHouseholdStore';
 import { CategoryBadge } from '../categories/CategoryBadge';
 import { TransactionDetail } from './TransactionDetail';
 
@@ -10,7 +11,7 @@ interface TransactionTableProps {
   transactions: Transaction[];
 }
 
-type SortKey = 'date' | 'description' | 'amount' | 'categoryId';
+type SortKey = 'date' | 'description' | 'amount' | 'categoryId' | 'accountId' | 'personId';
 type SortDir = 'asc' | 'desc';
 
 const PAGE_SIZE = 25;
@@ -18,6 +19,10 @@ const PAGE_SIZE = 25;
 export function TransactionTable({ transactions }: TransactionTableProps) {
   const categories = useCategoryStore(s => s.categories);
   const { bulkDeleteTransactions, bulkUpdateCategory } = useTransactionStore();
+  const { accounts, members } = useHouseholdStore();
+
+  const accountMap = useMemo(() => new Map(accounts.map(a => [a.id, a])), [accounts]);
+  const memberMap = useMemo(() => new Map(members.map(m => [m.id, m])), [members]);
 
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
@@ -67,6 +72,18 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
         case 'categoryId':
           cmp = (a.categoryId ?? '').localeCompare(b.categoryId ?? '');
           break;
+        case 'accountId': {
+          const aName = (a.accountId && accountMap.get(a.accountId)?.name) ?? '';
+          const bName = (b.accountId && accountMap.get(b.accountId)?.name) ?? '';
+          cmp = aName.localeCompare(bName);
+          break;
+        }
+        case 'personId': {
+          const aName = (a.personId && memberMap.get(a.personId)?.name) ?? '';
+          const bName = (b.personId && memberMap.get(b.personId)?.name) ?? '';
+          cmp = aName.localeCompare(bName);
+          break;
+        }
       }
       return sortDir === 'asc' ? cmp : -cmp;
     });
@@ -267,7 +284,7 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                     className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
                   />
                 </th>
-                {([['date', 'Date'], ['description', 'Description'], ['amount', 'Amount'], ['categoryId', 'Category']] as [SortKey, string][]).map(([key, label]) => (
+                {([['date', 'Date'], ['description', 'Description'], ['amount', 'Amount'], ['categoryId', 'Category'], ['accountId', 'Account'], ['personId', 'Person']] as [SortKey, string][]).map(([key, label]) => (
                   <th
                     key={key}
                     onClick={() => handleSort(key)}
@@ -284,7 +301,7 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
             <tbody>
               {pageRows.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={7} className="px-4 py-12 text-center text-gray-400">
                     No transactions found.
                   </td>
                 </tr>
@@ -317,6 +334,21 @@ export function TransactionTable({ transactions }: TransactionTableProps) {
                       </td>
                       <td className="px-4 py-3" onClick={() => setSelectedTx(tx)}>
                         <CategoryBadge categoryId={tx.categoryId} size="sm" />
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 text-xs whitespace-nowrap" onClick={() => setSelectedTx(tx)}>
+                        {tx.accountId ? accountMap.get(tx.accountId)?.name ?? '--' : '--'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap" onClick={() => setSelectedTx(tx)}>
+                        {tx.personId && memberMap.get(tx.personId) ? (
+                          <span
+                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
+                            style={{ backgroundColor: memberMap.get(tx.personId)!.color }}
+                          >
+                            {memberMap.get(tx.personId)!.name}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-400">--</span>
+                        )}
                       </td>
                     </tr>
                   );

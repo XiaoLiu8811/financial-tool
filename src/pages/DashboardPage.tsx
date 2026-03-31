@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { useFilteredTransactions } from '../hooks/useFilteredTransactions';
+import { useHouseholdStore } from '../store/useHouseholdStore';
+import { useUIStore } from '../store/useUIStore';
 import { HealthDashboard } from '../components/health/HealthDashboard';
 import { SpendingVsIncome } from '../components/charts/SpendingVsIncome';
 import { CategoryBreakdown } from '../components/charts/CategoryBreakdown';
@@ -15,6 +17,8 @@ export function DashboardPage() {
   const transactions = useFilteredTransactions();
   const [drillDown, setDrillDown] = useState<ChartDrillDownContext | null>(null);
   const navigate = useNavigate();
+  const { accounts, members } = useHouseholdStore();
+  const { personFilter, accountFilter, setPersonFilter, setAccountFilter } = useUIStore();
 
   if (transactions.length === 0) {
     return (
@@ -34,8 +38,40 @@ export function DashboardPage() {
     );
   }
 
+  const selectClasses = 'px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent';
+
   return (
     <div className="space-y-6">
+      {/* Person & Account Filters */}
+      {(accounts.length > 0 || members.length > 0) && (
+        <div className="flex gap-3">
+          {members.length > 0 && (
+            <select
+              value={personFilter ?? ''}
+              onChange={e => setPersonFilter(e.target.value || null)}
+              className={selectClasses}
+            >
+              <option value="">All People</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.name}</option>
+              ))}
+            </select>
+          )}
+          {accounts.length > 0 && (
+            <select
+              value={accountFilter ?? ''}
+              onChange={e => setAccountFilter(e.target.value || null)}
+              className={selectClasses}
+            >
+              <option value="">All Accounts</option>
+              {accounts.map(a => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
       <HealthDashboard transactions={transactions} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

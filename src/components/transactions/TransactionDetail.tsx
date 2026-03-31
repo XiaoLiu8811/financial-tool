@@ -3,6 +3,7 @@ import { Trash2, Save, Link2, Unlink, Search, Plus } from 'lucide-react';
 import type { Transaction } from '../../types/transaction';
 import { useTransactionStore } from '../../store/useTransactionStore';
 import { useCategoryStore } from '../../store/useCategoryStore';
+import { useHouseholdStore } from '../../store/useHouseholdStore';
 import { findPotentialMatches, type PotentialMatch } from '../../lib/transaction-linker';
 import { CategoryBadge } from '../categories/CategoryBadge';
 import { Modal } from '../ui/Modal';
@@ -15,6 +16,7 @@ interface TransactionDetailProps {
 export function TransactionDetail({ transaction, onClose }: TransactionDetailProps) {
   const categories = useCategoryStore(s => s.categories);
   const addCategory = useCategoryStore(s => s.addCategory);
+  const { accounts, members, incomeTypes, addMember } = useHouseholdStore();
   const updateTransaction = useTransactionStore(s => s.updateTransaction);
   const deleteTransaction = useTransactionStore(s => s.deleteTransaction);
   const linkTransactions = useTransactionStore(s => s.linkTransactions);
@@ -24,6 +26,8 @@ export function TransactionDetail({ transaction, onClose }: TransactionDetailPro
 
   const [categoryId, setCategoryId] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [personId, setPersonId] = useState<string>('');
+  const [incomeTypeId, setIncomeTypeId] = useState<string>('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [saving, setSaving] = useState(false);
   const [potentialMatches, setPotentialMatches] = useState<PotentialMatch[] | null>(null);
@@ -31,11 +35,15 @@ export function TransactionDetail({ transaction, onClose }: TransactionDetailPro
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [newCatColor, setNewCatColor] = useState('#6366f1');
+  const [showNewPerson, setShowNewPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState('');
 
   useEffect(() => {
     if (transaction) {
       setCategoryId(transaction.categoryId ?? '');
       setNotes(transaction.notes ?? '');
+      setPersonId(transaction.personId ?? '');
+      setIncomeTypeId(transaction.incomeTypeId ?? '');
       setConfirmDelete(false);
       setPotentialMatches(null);
       setSearchingMatches(false);
@@ -78,6 +86,8 @@ export function TransactionDetail({ transaction, onClose }: TransactionDetailPro
       categoryId: categoryId || null,
       categorySource: 'manual',
       notes: notes || undefined,
+      personId: personId || undefined,
+      incomeTypeId: incomeTypeId || undefined,
     });
     setSaving(false);
     onClose();
@@ -230,6 +240,114 @@ export function TransactionDetail({ transaction, onClose }: TransactionDetailPro
             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
           />
         </div>
+
+        {/* Account (read-only) */}
+        {transaction.accountId && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Account</label>
+            <p className="text-sm text-gray-900">
+              {accounts.find(a => a.id === transaction.accountId)?.name ?? 'Unknown Account'}
+            </p>
+          </div>
+        )}
+
+        {/* Person */}
+        <div>
+          <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Person</label>
+          <select
+            value={personId}
+            onChange={e => {
+              if (e.target.value === '__new__') {
+                setShowNewPerson(true);
+              } else {
+                setPersonId(e.target.value);
+                setShowNewPerson(false);
+              }
+            }}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value="">Unassigned</option>
+            {members.map(m => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+            <option value="__new__">+ Add new person...</option>
+          </select>
+          {showNewPerson && (
+            <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200 space-y-2">
+              <input
+                type="text"
+                value={newPersonName}
+                onChange={e => setNewPersonName(e.target.value)}
+                placeholder="Person name"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newPersonName.trim()) {
+                    const id = crypto.randomUUID();
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+                    addMember({
+                      id,
+                      name: newPersonName.trim(),
+                      color: colors[members.length % colors.length],
+                      createdAt: new Date().toISOString(),
+                    });
+                    setPersonId(id);
+                    setShowNewPerson(false);
+                    setNewPersonName('');
+                  }
+                }}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    if (!newPersonName.trim()) return;
+                    const id = crypto.randomUUID();
+                    const colors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+                    await addMember({
+                      id,
+                      name: newPersonName.trim(),
+                      color: colors[members.length % colors.length],
+                      createdAt: new Date().toISOString(),
+                    });
+                    setPersonId(id);
+                    setShowNewPerson(false);
+                    setNewPersonName('');
+                  }}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Plus size={12} />
+                  Create
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNewPerson(false);
+                    setNewPersonName('');
+                  }}
+                  className="px-3 py-1.5 text-gray-600 text-xs border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Income Type (only for income transactions) */}
+        {transaction.amount >= 0 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Income Type</label>
+            <select
+              value={incomeTypeId}
+              onChange={e => setIncomeTypeId(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="">None</option>
+              {incomeTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Import Info */}
         {importBatch && (
